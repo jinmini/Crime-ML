@@ -1,37 +1,32 @@
-from flask import json
-import googlemaps
+from com.models.crime.data_reader import Datareader
 from com.models.crime.dataset import Dataset
 import pandas as pd
 
 class CrimeService:
     
-    dataset = Dataset() #Dataset Instance 생성성
+    def __init__(self):
+        self.data_reader = Datareader()  
 
-    def new_model(self, fname) -> object:
+    def new_model(self, fname) -> pd.DataFrame:
 
-        this = self.dataset 
-        this.context = "C:\\Users\\bitcamp\\Documents\\2025\\25ep_python(esg)\\Crimecity_250220\\com\\datas\\"
-        this.fname = fname
-        file_path = this.context + this.fname      
+        self.data_reader.fname = fname
 
         if fname.endswith('.csv'):
-                return pd.read_csv(file_path)
+            return self.data_reader.csv_to_dframe()  
         elif fname.endswith('.xls') or fname.endswith('.xlsx'):
-                return pd.read_excel(file_path)
+            return self.data_reader.xls_to_dframe(header=0, usecols=None) 
         else:
-                raise ValueError(f"지원하지 않는 파일 형식입니다 : {fname}. CSV 또는 Excel 파일만 사용 가능합니다.")
-        
-
+            raise ValueError(f"지원하지 않는 파일 형식입니다: {fname}. CSV 또는 Excel 파일만 사용 가능합니다.")
+    
     def preprocess(self) -> Dataset:
         print("------------모델 전처리 시작-----------")
-        this = self.dataset
 
-        this.cctv_in_seoul = self.new_model("cctv_in_seoul.csv")
-        this.crime_in_seoul = self.new_model("crime_in_seoul.csv")
-        this.pop_in_seoul = self.new_model("pop_in_seoul.xls")
-        print("데이터셋 로로딩 완료!")
-    
-        return this  
-    
+        cctv_data = self.new_model("cctv_in_seoul.csv")
+        crime_data = self.new_model("crime_in_seoul.csv")
+        pop_data = self.new_model("pop_in_seoul.xls")
 
+        print("데이터 로딩 완료!")
 
+        dataset = Dataset(cctv=cctv_data, crime=crime_data, pop=pop_data)
+
+        return dataset
