@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from flask import json
-import googlemaps
 import pandas as pd
 
 @dataclass
@@ -31,7 +30,7 @@ class Datareader:
 
     def csv_to_dframe(self) -> object:
         file = self.new_file()
-        return pd.read_csv(file, encoding='UTF-8', thousands=',')
+        return pd.read_csv(file, thousands=',')
 
     def xls_to_dframe(self, header, usecols)-> pd.DataFrame:
         file = self.new_file()
@@ -39,8 +38,6 @@ class Datareader:
 
     def json_load(self):
         file = self.new_file()
-        return json.load(open(file, encoding='UTF-8'))
+        return json.load(open(file))
 
-    def create_gmaps(self):
-        return googlemaps.Client(key='..')
- 
+
