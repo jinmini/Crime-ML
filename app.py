@@ -1,16 +1,12 @@
 from flask import Flask, render_template
-from com.models.crime.crime_controller import CrimeController
+from com.models.crime_controller import CrimeController
 
 app = Flask(__name__)
 
 @app.route('/') 
 def home():
     controller = CrimeController()
-    controller.modeling()
-    return render_template("/index.html")
-
-@app.route('/home')
-def index():
+    controller.modeling('cctv_in_seoul.csv', 'crime_in_seoul.csv', 'pop_in_seoul.xls')
     return render_template("index.html")
 
 @app.route('/crimerate_ml')
