@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn import preprocessing
 from com.models.data_reader import Datareader
 from com.models.dataset import Dataset
 from com.models.googlemap import GoogleMap
@@ -10,6 +11,10 @@ class CrimeService:
 
     data_reader = Datareader()
     dataset = Dataset()
+
+    def __init__(self):
+        self.crime_rate_columns = ['살인검거율', '강도검거율', '강간검거율', '절도검거율', '폭력검거율']
+        self.crime_columns = ['살인', '강도', '강간', '절도', '폭력']
 
     def preprocess(self, *args) -> Dataset:
         """파일 로드 및 전처리 함수"""
@@ -34,30 +39,27 @@ class CrimeService:
 
     def save_object_to_csv(self, this, fname) -> object:
 
+        print(f"🌱save_csv 실행 : {fname}")
         full_name = os.path.join(save_dir, fname)
 
-        print(f"⛔save_csv 처음 : {fname}")
-    
         if not os.path.exists(full_name) and  fname == "cctv_in_seoul.csv":
             this.cctv = self.create_matrix(fname)
             this = self.update_cctv(this)
-            this.cctv.to_csv(full_name, index=False)
             
         elif not os.path.exists(full_name) and  fname == "crime_in_seoul.csv":
             this.crime = self.create_matrix(fname)
             this = self.update_crime(this) 
-            this.crime.to_csv(full_name, index=False)
+            this = self.update_police(this) 
 
         elif not os.path.exists(full_name) and  fname == "pop_in_seoul.xls":
             this.pop = self.create_matrix(fname)
             this = self.update_pop(this)
-            this.pop.to_csv(os.path.join(save_dir, "pop_in_seoul.csv"), index=False)
 
         else:
             print(f"파일이 이미 존재합니다. {fname}")
 
         return this
-    
+
     @staticmethod
     def update_cctv(this) -> object:
         this.cctv = this.cctv.drop(['2013년도 이전', '2014년', '2015년', '2016년'], axis = 1)
@@ -75,9 +77,11 @@ class CrimeService:
         print(f"CRIME 데이터 헤드: {this.crime.head()}")
         crime = this.crime
         station_names = [] # 경찰서 관서명 리스트
+
         for name in crime['관서명']:
             station_names.append('서울' + str(name[:-1]) + '경찰서')
         print(f"🔥💧경찰서 관서명 리스트: {station_names}")
+
         station_addrs = []
         station_lats = []
         station_lngs = []
@@ -96,16 +100,57 @@ class CrimeService:
             tmp = addr.split()
             tmp_gu = [gu for gu in tmp if gu[-1] == '구'][0]
             gu_names.append(tmp_gu)
-        [print(f"🔥💧자치구 리스트 2: {gu_names}")]
+    
         crime['자치구'] = gu_names
-      
-        cols = ['살인 검거', '강도 검거', '강간 검거', '절도 검거', '폭력 검거']
-        temp = crime[cols] / crime[cols].max()
-        crime['검거율'] = np.sum(temp, axis=1)
 
-        crime = crime[['자치구', '검거율']].round({'검거율': 1})
-
+        crime.to_csv(os.path.join(save_dir, 'crime_in_seoul.csv'), index=False)
         this.crime = crime
+        return this
+    
+    @staticmethod
+    def update_police(this) -> object:
+
+        crime = this.crime
+
+        police = pd.pivot_table(crime, index='자치구', aggfunc=np.sum)
+
+        # ✅ 검거율 계산
+        for crime_type in ['살인', '강도', '강간', '절도', '폭력']:
+            police[f'{crime_type}검거율'] = (police[f'{crime_type} 검거'] / police[f'{crime_type} 발생']) * 100
+
+        # ✅ 검거율 100% 초과값 조정
+        for col in ['살인검거율', '강도검거율', '강간검거율', '절도검거율', '폭력검거율']:
+            police[col] = police[col].apply(lambda x: min(x, 100))
+
+        police.reset_index(inplace=True)  # ✅ `자치구`를 컬럼으로 변환
+        police = police[['자치구', '살인검거율', '강도검거율', '강간검거율', '절도검거율', '폭력검거율']]  # ✅ 컬럼 정리
+        police = police.round(1)  # ✅ 소수점 첫째 자리 반올림
+
+        police.to_csv(os.path.join(save_dir, 'police_in_seoul.csv'), index=False) 
+
+        crime_rate_columns = ['살인검거율', '강도검거율', '강간검거율', '절도검거율', '폭력검거율']
+        crime_columns = ['살인', '강도', '강간', '절도', '폭력']
+
+        x = police[crime_rate_columns].values
+        min_max_scalar = preprocessing.MinMaxScaler()
+        """
+          스케일링은 선형변환을 적용하여
+          전체 자료의 분포를 평균 0, 분산 1이 되도록 만드는 과정
+          """
+        x_scaled = min_max_scalar.fit_transform(x.astype(float))
+        """
+         정규화 normalization
+         많은 양의 데이터를 처리함에 있어 데이터의 범위(도메인)를 일치시키거나
+         분포(스케일)를 유사하게 만드는 작업
+         """
+        police_norm = pd.DataFrame(x_scaled, columns=crime_columns, index=police.index)
+        police_norm[crime_rate_columns] = police[crime_rate_columns]
+        police_norm['범죄'] = np.sum(police_norm[crime_rate_columns], axis=1)
+        police_norm['검거'] = np.sum(police_norm[crime_columns], axis=1)
+        police_norm.to_csv(os.path.join(save_dir, 'police_norm_in_seoul.csv'))
+
+        this.police = police
+
         return this
 
     @staticmethod
